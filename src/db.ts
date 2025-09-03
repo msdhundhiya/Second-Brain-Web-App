@@ -1,6 +1,4 @@
 import mongoose, { Schema, Types, model } from "mongoose";
-
-const ObjectId = mongoose.Types.ObjectId;
 import * as dotenv from 'dotenv';
 dotenv.config();
 const mongourl = process.env.MONGO_URL;
@@ -15,6 +13,7 @@ const connectToDB = async () => {
     }
 };
 export interface Iuser {
+  _id : mongoose.Types.ObjectId,
   email : string,
   password : string
 }
@@ -25,12 +24,12 @@ export interface Icontent {
   link: string,
   type: string,
   title : string,
-  tags :Types.ObjectId[],
-  userId :Types.ObjectId
+  tags :mongoose.Types.ObjectId[],
+  userId :mongoose.Types.ObjectId
 }
 export interface Ilink {
   hash : string,
-  userId :Types.ObjectId
+  userId :mongoose.Types.ObjectId
 }
 connectToDB();
 const userSchema = new mongoose.Schema<Iuser>({
@@ -46,7 +45,7 @@ const contentSchema = new Schema<Icontent>({
   link: { type: String, required: true },
   type: { type: String, enum: contentTypes, required: true },
   title: { type: String, required: true },
-  tags: [{ type: Types.ObjectId, ref: 'Tag' }],
+  tags: [{ type: mongoose.Types.ObjectId, ref: 'Tag' }],
   userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
 });
 const linkSchema = new mongoose.Schema<Ilink>({
