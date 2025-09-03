@@ -15,7 +15,7 @@ const connectToDB = async () => {
     }
 };
 export interface Iuser {
-  username : string,
+  email : string,
   password : string
 }
 export interface Itag {
@@ -34,7 +34,7 @@ export interface Ilink {
 }
 connectToDB();
 const userSchema = new mongoose.Schema<Iuser>({
-  username: { type: String, required: true, unique: true },
+  email: { type: String, required: true, unique: true },
   password: { type: String, required: true },
 });
 const tagSchema = new mongoose.Schema<Itag>({
