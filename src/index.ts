@@ -6,7 +6,14 @@ import bcrypt from "bcrypt";
 import { UserModel,ContentModel,LinkModel,TagModel } from "./db.js";
 import { type Iuser, type Icontent, type Ilink , type Itag} from './db.js';
 import { authMiddleware } from "./middlewares.js";
-import { randomBytes } from "crypto";
+function random(length: number): string {
+    const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+    let result = '';
+    for (let i = 0; i < length; i++) {
+        result += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    return result;
+}
 const jwtSecret = process.env.JWT_SEC_USER;
 if (!jwtSecret){
     console.error("FATAL error jwt is not defined in env files")
@@ -144,72 +151,70 @@ app.delete("/api/v1/content",authMiddleware(jwtSecret),async (req: Request,res: 
         })
     }
 });
-app.post("/api/v1/brain/share", authMiddleware(jwtSecret), async (req: Request, res: Response) => {
-    try {
-        const existingLink = await LinkModel.findOne({ userId: req.userId });
-        if (existingLink) {
-            return res.status(200).json({ hash: existingLink.hash });
-        }
-        const hash = randomBytes(8).toString('hex');
+app.post("/api/v1/brain/share",authMiddleware(jwtSecret),async(req:Request,res:Response) =>{
+    const share: boolean = req.body.share;
+    if (share) {
+            const existingLink = await LinkModel.findOne({
+                userId: req.userId
+            });
 
-        const newLink = await LinkModel.create({
-            userId: req.userId,
-            hash: hash
+            if (existingLink) {
+                res.json({
+                    hash: existingLink.hash
+                })
+                return;
+            }
+            const hash = random(10);
+            await LinkModel.create({
+                userId: req.userId,
+                hash: hash
+            })
+
+            res.json({
+                hash
+            })
+    } else {
+        await LinkModel.deleteOne({
+            userId: req.userId
         });
-
-        res.status(201).json({ hash: newLink.hash });
-
-    } catch (e) {
-     
-        console.error("Error creating share link:", e);
-        res.status(500).json({ message: "An internal server error occurred." });
-    }
-});
-
-app.delete("/api/v1/brain/share", authMiddleware(jwtSecret), async (req: Request, res: Response) => {
-
-    try {
-        await LinkModel.deleteOne({ userId: req.userId });
-        res.status(200).json({ message: "Sharing link removed successfully." });
-    } catch (e) {
-        console.error("Error deleting share link:", e);
-        res.status(500).json({ message: "An internal server error occurred." });
-    }
-});
-
-app.get("/api/v1/brain/share/:hash", async (req: Request, res: Response) => {
-   
-    const { hash } = req.params;
-
-    try {
-        const link = await LinkModel.findOne({ hash });
-
-        if (!link) {
-            
-            return res.status(404).json({ message: "This sharing link is invalid or has expired." });
-        }
-
-        const [user, content] = await Promise.all([
-            UserModel.findOne({ _id: link.userId }),
-            ContentModel.find({ userId: link.userId })
-        ]);
-
-        if (!user) {
-            return res.status(404).json({ message: "The owner of this content could not be found." });
-        }
 
         res.json({
-            email: user.email,
-            content: content
-        });
-
-    } catch (e) {
-        console.error("Error fetching shared content:", e);
-        res.status(500).json({ message: "An internal server error occurred." });
+            message: "Removed link"
+        })
     }
 });
+app.get("/api/v1/brain:shareLink",authMiddleware(jwtSecret),async(req:Request,res:Response) =>{
+    const hash = req.params.shareLink;
+    const link = await LinkModel.findOne({
+        hash
+    });
+    if (!link) {
+        res.status(411).json({
+            message: "Sorry incorrect input"
+        })
+        return;
+    }
+    const content = await ContentModel.find({
+        userId: link.userId
+    })
 
+    console.log(link);
+    const user = await UserModel.findOne({
+        _id: link.userId
+    })
 
+    if (!user) {
+        res.status(411).json({
+            message: "user not found, error should ideally not happen"
+        })
+        return;
+    }
+
+    res.json({
+        email: user.email,
+        content: content
+    })
+});
 app.listen(3000, () => {
   console.log(`🚀 Server is running successfully on http://localhost:3000`);
 });
