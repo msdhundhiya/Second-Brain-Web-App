@@ -1,12 +1,12 @@
 import express ,{type Request,type Response} from  "express";
-import mongoose from "mongoose";
+import mongoose, { isValidObjectId } from "mongoose";
 import jwt from "jsonwebtoken";
 import {z} from "zod";
 import bcrypt from "bcrypt";
 import { UserModel,ContentModel,LinkModel,TagModel } from "./db.js";
 import { type Iuser, type Icontent, type Ilink , type Itag} from './db.js';
 import { authMiddleware } from "./middlewares.js";
-import { ta } from "zod/locales";
+import { randomBytes } from "crypto";
 const jwtSecret = process.env.JWT_SEC_USER;
 if (!jwtSecret){
     console.error("FATAL error jwt is not defined in env files")
@@ -118,15 +118,97 @@ app.get("/api/v1/content",authMiddleware(jwtSecret),async(req: Request,res:Respo
     
 });
 
-app.delete("/api/v1/content",(req,res) =>{
-    
+app.delete("/api/v1/content",authMiddleware(jwtSecret),async (req: Request,res: Response) =>{
+    const id = req.body.id;
+    // console.log(id);
+    // console.log(req.userId);
+    if (!isValidObjectId(id)) {
+        return res.status(400).json({ message: "Invalid content ID format" });
+    }
+    try {const deletedContent = await ContentModel.findOneAndDelete({
+        _id: id,
+        userId : req.userId
+    });
+    // console.log(deletedContent);
+    if (!deletedContent) {
+            return res.status(404).json({
+                message: "Content not found or you do not have permission to delete it"
+            });
+        }
+    return res.json({
+        message: "content Deleted"
+    });}catch(e){
+        console.error("Something is Wrong", e);
+        return res.json({
+            message: "unable to Delete content"
+        })
+    }
 });
-app.post("/api/v1/brain/share",(req,res) =>{
-    
+app.post("/api/v1/brain/share", authMiddleware(jwtSecret), async (req: Request, res: Response) => {
+    try {
+        const existingLink = await LinkModel.findOne({ userId: req.userId });
+        if (existingLink) {
+            return res.status(200).json({ hash: existingLink.hash });
+        }
+        const hash = randomBytes(8).toString('hex');
+
+        const newLink = await LinkModel.create({
+            userId: req.userId,
+            hash: hash
+        });
+
+        res.status(201).json({ hash: newLink.hash });
+
+    } catch (e) {
+     
+        console.error("Error creating share link:", e);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
 });
-app.get("/api/v1/brain:shareLink",(req,res) =>{
-    
+
+app.delete("/api/v1/brain/share", authMiddleware(jwtSecret), async (req: Request, res: Response) => {
+
+    try {
+        await LinkModel.deleteOne({ userId: req.userId });
+        res.status(200).json({ message: "Sharing link removed successfully." });
+    } catch (e) {
+        console.error("Error deleting share link:", e);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
 });
+
+app.get("/api/v1/brain/share/:hash", async (req: Request, res: Response) => {
+   
+    const { hash } = req.params;
+
+    try {
+        const link = await LinkModel.findOne({ hash });
+
+        if (!link) {
+            
+            return res.status(404).json({ message: "This sharing link is invalid or has expired." });
+        }
+
+        const [user, content] = await Promise.all([
+            UserModel.findOne({ _id: link.userId }),
+            ContentModel.find({ userId: link.userId })
+        ]);
+
+        if (!user) {
+            return res.status(404).json({ message: "The owner of this content could not be found." });
+        }
+
+        res.json({
+            email: user.email,
+            content: content
+        });
+
+    } catch (e) {
+        console.error("Error fetching shared content:", e);
+        res.status(500).json({ message: "An internal server error occurred." });
+    }
+});
+
 
 app.listen(3000, () => {
   console.log(`🚀 Server is running successfully on http://localhost:3000`);

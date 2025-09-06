@@ -35,6 +35,7 @@ export function authMiddleware(secret: string) {
       const decoded = jwt.verify(token, secret) as unknown as MyJwtPayload;
       
       req.userId = decoded.id;
+      // console.log(req.userId);
       next();
 
     } catch (error) {
